@@ -52,6 +52,51 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
    * The query aggregates all start and end time into different 'buckets' and then divides by no of distinct processes to get average directly.
    * Placing it inside `SUM()` enables **conditional aggregation** (only summing values that match the condition) which avoids doing a self-join.
 
+3. [Students and Examinations](https://leetcode.com/problems/students-and-examinations)
+
+   ```SQL
+   WITH ExamCounts AS (
+    -- Step 1: Compress the exam table down to unique pairs quickly
+      SELECT student_id, subject_name, COUNT(*) AS attended_exams
+      FROM Examinations
+      GROUP BY student_id, subject_name
+   )
+   -- Step 2: Combine the small master grid with our pre-calculated counts
+   SELECT 
+      s.student_id, 
+      s.student_name, 
+      sub.subject_name, 
+      COALESCE(e.attended_exams, 0) AS attended_exams
+   FROM Students s
+   CROSS JOIN Subjects sub
+   LEFT JOIN ExamCounts e USING(student_id, subject_name)
+   ORDER BY s.student_id, sub.subject_name;
+   ```
+
+   * Makes a table for student and subject pairs inside the Examinations table storing counts.
+   * Uses this new table to fill in the Cartesian product table quickly.
+
+4. [Average Selling Price](https://leetcode.com/problems/average-selling-price)
+
+   ```SQL
+   SELECT p.product_id, 
+          COALESCE(
+              ROUND(
+                  SUM(u.units * p.price)::numeric / SUM(u.units), 
+                  2
+              ), 
+              0
+          ) AS average_price
+   FROM Prices p
+   LEFT JOIN UnitsSold u 
+       ON p.product_id = u.product_id 
+       AND u.purchase_date BETWEEN p.start_date AND p.end_date
+   GROUP BY p.product_id;
+   ```
+
+   * Uses `LEFT JOIN` combined with `BETWEEN` to match sales transactions only within the active price period.
+   * Uses `COALESCE` to return `0` if a product has no sales (since `SUM(u.units)` would be `NULL` and cause the average to be `NULL`).
+
 ## Syntax Reference
 
 1. `SELECT` for picking rows.
@@ -197,6 +242,81 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
     LEFT JOIN Examinations e ON s.student_id = e.student_id AND sub.subject_name = e.subject_name
     GROUP BY s.student_id, s.student_name, sub.subject_name
     ORDER BY s.student_id, sub.subject_name;
+    ```
+
+14. `WITH` clause is essentially assigning a table to a variable.
+
+    Syntax:
+
+    ```SQL
+    WITH temporary_variable_name AS (
+    -- You write any query you want inside these parentheses
+    SELECT column1, column2 
+    FROM SomeTable
+    WHERE condition
+    )
+    -- Now you can treat 'temporary_variable_name' like an actual table
+    SELECT * FROM temporary_variable_name;
+    ```
+
+    * Written top to bottom(so goated).
+    * Can be chained(lesgooo).
+
+       ```SQL
+       WITH StepOne AS (
+          SELECT user_id, active_days FROM Users WHERE active_days > 10
+       ),
+       StepTwo AS (
+       -- This CTE is filtering data that was already filtered by StepOne!
+          SELECT user_id FROM StepOne WHERE user_id IN (SELECT user_id FROM PremiumUsers)
+       )
+       SELECT * FROM StepTwo;
+       ```
+
+    * Doesn't actually save to disk so no cleanup required.
+
+15. `HAVING` (And how an SQL query executes)
+
+    The logical execution order:
+    1. `FROM / JOIN` : The database grabs the tables and stitches them together.
+    2. `WHERE` : The database filters out individual rows (e.g., deleting deactivated employees). **Crucial note**: At this exact split second, the database has no idea how many total rows exist; it is just reading them line-by-line.
+    3. `GROUP BY` : The database takes the remaining rows and sorts them into organized buckets (e.g., grouping direct reports under their specific managerID).
+    4. `HAVING` : Now that the buckets are fully formed, the database can finally run math on them (like COUNT, SUM, or AVG). HAVING looks at each bucket as a single unit and filters out the entire bucket if it doesn't meet the condition.
+    5. `SELECT` : The database picks which columns to show you.
+    6. `ORDER BY` : The final output is sorted.
+
+    So `HAVING` is essentially like `WHERE`, but for aggregates. It's the step where we can use functions like `COUNT`, `AVG` and others as a filter.
+
+    Ex:
+
+    ```SQL
+    SELECT mgr.name 
+    FROM Employee mgr
+    JOIN Employee e ON e.managerID = mgr.id
+    GROUP BY mgr.id, mgr.name
+    HAVING COUNT(e.id) >= 5;
+    ```
+
+16. `BETWEEN` & Datetime Operations
+
+    Used to check if a value (often a date/timestamp or numeric value) lies within a specific range (inclusive).
+
+    Ex:
+
+    ```SQL
+    SELECT p.product_id, 
+           COALESCE(
+               ROUND(
+                   SUM(u.units * p.price)::numeric / SUM(u.units), 
+                   2
+               ), 
+               0
+           ) AS average_price
+    FROM Prices p
+    LEFT JOIN UnitsSold u 
+        ON p.product_id = u.product_id 
+        AND u.purchase_date BETWEEN p.start_date AND p.end_date
+    GROUP BY p.product_id;
     ```
 
 ## References
