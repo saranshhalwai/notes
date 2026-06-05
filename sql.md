@@ -282,8 +282,9 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
     2. `WHERE` : The database filters out individual rows (e.g., deleting deactivated employees). **Crucial note**: At this exact split second, the database has no idea how many total rows exist; it is just reading them line-by-line.
     3. `GROUP BY` : The database takes the remaining rows and sorts them into organized buckets (e.g., grouping direct reports under their specific managerID).
     4. `HAVING` : Now that the buckets are fully formed, the database can finally run math on them (like COUNT, SUM, or AVG). HAVING looks at each bucket as a single unit and filters out the entire bucket if it doesn't meet the condition.
-    5. `SELECT` : The database picks which columns to show you.
-    6. `ORDER BY` : The final output is sorted.
+    5. `WINDOW FUNCTIONS` are evaluated here.
+    6. `SELECT` : The database picks which columns to show you.
+    7. `ORDER BY` : The final output is sorted.
 
     So `HAVING` is essentially like `WHERE`, but for aggregates. It's the step where we can use functions like `COUNT`, `AVG` and others as a filter.
 
@@ -317,6 +318,66 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
         ON p.product_id = u.product_id 
         AND u.purchase_date BETWEEN p.start_date AND p.end_date
     GROUP BY p.product_id;
+    ```
+
+17. Window functions (`OVER`)
+    In comparison to `GROUP BY`, window function do not replace the original rows by aggregates, so we still retain access to the original rows.
+
+    Syntax:
+
+    ```SQL
+    SELECT 
+        column1,
+        FUNCTION() OVER (
+            PARTITION BY column2
+            ORDER BY column3
+            ROWS/RANGE BETWEEN ...
+        ) AS analytical_result
+    FROM Table;
+    ```
+
+    * `PARTITION BY`: divides the table into mini tables(kinda like group by). If omitted, entire table is considered.
+    * `ORDER BY`: obvious
+    * `ROWS/RANGE BETWEEN`: Defines a moving subset of rows relative to the current row. If omitted but an `ORDER BY` is present, it defaults to all rows from the start of the partition up to the current row.
+
+    Row functions:
+
+    * `ROW_NUMBER()`: Assigns a unique, strict incrementing integer. Never allows duplicate ranks, breaking ties arbitrarily or based on secondary keys.
+    * `RANK()`: Assigns identical ranks to ties. Skips ranks afterwards to account for the gap (classic Olympic medal logic: if there's a tie for Silver, there is no 3rd place).
+    * `DENSE_RANK()`: Assigns identical ranks to ties, but never skips any numbers. Ranks remain completely contiguous.
+    * `LAG(col, offset)`: Grabs a value from offset rows behind the current row. Phenomenal for calculating week-over-week growth or time differences between sequential events.
+    * `LEAD(col, offset)`: Reaches forward to grab a value from offset rows ahead of the current row.
+    * `FIRST  VALUE(col)`: Instantly extracts the value from the absolute first row of the configured frame.
+    * `LAST_VALUE(col)`: Extracts the value from the absolute last row of the configured frame.
+
+    Ex:
+
+    ```SQL
+    SELECT user_id, page_id, view_timestamp,
+           LEAD(view_timestamp, 1) OVER (
+               PARTITION BY user_id 
+               ORDER BY view_timestamp
+           ) - view_timestamp AS time_spent_on_page
+    FROM UserClicks;
+    
+
+    WITH RankedDeliveries AS (
+        SELECT order_date, 
+               customer_pref_delivery_date,
+               ROW_NUMBER() OVER(
+                   PARTITION BY customer_id 
+                   ORDER BY order_date, delivery_id
+               ) as rn
+        FROM Delivery
+    )
+    SELECT 
+        ROUND(
+            (COUNT(CASE WHEN order_date = customer_pref_delivery_date THEN 1 END) * 100.0) 
+            / COUNT(*), 
+            2
+        ) AS immediate_percentage
+    FROM RankedDeliveries
+    WHERE rn = 1;
     ```
 
 ## References
