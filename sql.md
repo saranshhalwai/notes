@@ -1,6 +1,6 @@
 # SQL reference
 
-Written by [Saransh Halwai](saranshhalwai.me) with help of [Gemini](gemini.google.com) and [Gemini](https://antigravity.google/product/antigravity-cli). Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-50/).
+Written by [Saransh Halwai](https://saranshhalwai.me) with help of [Gemini](https://gemini.google.com) and [Gemini](https://antigravity.google/product/antigravity-cli). Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-50/).
 
 ## At a glance
 
