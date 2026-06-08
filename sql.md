@@ -1,6 +1,6 @@
 # SQL reference
 
-Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-50/)
+Written by [Saransh Halwai](saranshhalwai.me) with help of [Gemini](gemini.google.com) and [Gemini](https://antigravity.google/product/antigravity-cli). Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-50/).
 
 ## At a glance
 
@@ -97,6 +97,54 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
    * Uses `LEFT JOIN` combined with `BETWEEN` to match sales transactions only within the active price period.
    * Uses `COALESCE` to return `0` if a product has no sales (since `SUM(u.units)` would be `NULL` and cause the average to be `NULL`).
 
+5. [Count Salary Categories](https://leetcode.com/problems/count-salary-categories)
+
+   ```SQL
+   WITH CategorySkeleton AS (
+       -- Create an on-the-fly table containing all mandatory categories
+       SELECT * FROM (VALUES ('Low Salary'), ('Average Salary'), ('High Salary')) AS t(category)
+   ),
+   CategorizedAccounts AS (
+       SELECT 
+           CASE 
+               WHEN income < 20000 THEN 'Low Salary'
+               WHEN income BETWEEN 20000 AND 50000 THEN 'Average Salary'
+               ELSE 'High Salary'
+           END AS category,
+           COUNT(*) AS accounts_count
+       FROM Accounts
+       GROUP BY 1
+   )
+   SELECT c.category, 
+          COALESCE(a.accounts_count, 0) AS accounts_count
+   FROM CategorySkeleton c
+   LEFT JOIN CategorizedAccounts a USING(category);
+   ```
+
+   * Uses `VALUES` inside a CTE (`CategorySkeleton`) to build a temporary master table of all categories on-the-fly.
+   * Joins the real counts table (`CategorizedAccounts`) to the skeleton using `LEFT JOIN` and `COALESCE` to guarantee that categories with zero records are still included in the final output (with a count of `0`).
+
+6. [Group Sold Products By The Date](https://leetcode.com/problems/group-sold-products-by-the-date)
+
+   ```SQL
+   WITH UniqueActivities AS (
+       -- Step 1: Evict duplicate sales of the same product on the same day
+       SELECT DISTINCT sell_date, product
+       FROM Activities
+   )
+   -- Step 2: Group by date and roll up the strings
+   SELECT sell_date,
+          COUNT(product) AS num_sold,
+          STRING_AGG(product, ',' ORDER BY product ASC) AS products
+   FROM UniqueActivities
+   GROUP BY sell_date
+   ORDER BY sell_date;
+   ```
+
+   * **String Aggregation**: Used to aggregate strings from multiple rows into a single string (separated by a delimiter like a comma).
+     * PostgreSQL: `STRING_AGG(column, delimiter [ORDER BY clause])`
+     * MySQL: `GROUP_CONCAT([DISTINCT] column [ORDER BY clause] [SEPARATOR delimiter])`
+
 ## Syntax Reference
 
 1. `SELECT` for picking rows.
@@ -145,14 +193,30 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
    ORDER BY id ASC;
    ```
 
-8. `LENGTH()` function gives length of string.
+8. `LENGTH()` & String Manipulation (`UPPER`, `LOWER`, `LEFT`, `SUBSTRING`, `||`)
 
-   Ex:
+   * `LENGTH(str)`: Returns the length of a string.
+   * `UPPER(str)` / `LOWER(str)`: Converts characters to uppercase/lowercase.
+   * `LEFT(str, n)`: Extracts `n` characters from the left side of a string.
+   * `SUBSTRING(str FROM pos)`: Extracts a substring starting from character position `pos`.
+   * `||`: Concatenates two or more strings together.
+
+   Ex 1 (Filtering by length):
 
    ```SQL
    SELECT t.tweet_id 
    FROM Tweets T
    WHERE LENGTH(t.content) > 15;
+   ```
+
+   Ex 2 (Capitalizing only the first character):
+
+   ```SQL
+   SELECT user_id,
+          -- Force ONLY the absolute first character to Upper, and EVERYTHING else to Lower
+          UPPER(LEFT(name, 1)) || LOWER(SUBSTRING(name FROM 2)) AS name
+   FROM Users
+   ORDER BY user_id;
    ```
 
 9. `JOIN`
@@ -379,6 +443,85 @@ Examples Taken from [Leetcode's SQL 50](https://leetcode.com/studyplan/top-sql-5
     FROM RankedDeliveries
     WHERE rn = 1;
     ```
+
+## Regex
+
+### PostgreSQL native Operators
+
+| Operator | Meaning | Ex | Evaluates to |
+| --- | --- | --- | --- |
+| `~` | Matches pattern (Case sensitive) | `'Apple' ~ 'A'` | True |
+| `~*` | Matches pattern (Case insensitive) | `'Apple' ~* 'a'` | True |
+| `!~` | Does not match pattern (Case Sensitive) | `'Apple' !~ 'z'` | True |
+| `!~*` | Does not match pattern (Case insensitive) | `'Apple' !~* 'A'` | False |
+
+### The characters
+
+#### Anchors
+
+Match positions in the string.
+
+* `^`: Start of the string line.
+* `$`: End of the string line.
+
+#### Character classes
+
+Can look for categories of data.
+
+* `.`: Matches any single character(except newline)
+* `\d`: Any numerical digit
+* `\w`: Any alphanumeric word character(letters, numbers, or underscores)
+* `\s`: Any whitespace character(spaces, tabs, newlines)
+
+#### Quantifiers
+
+Declare how many repetitions are allowed.
+
+* `*`: >=0
+* `+`: >0
+* `?`: <=1
+* `{n}`: =n
+
+#### Sets and Groups
+
+* `[A-Z]`: A character set. Matches any *single* uppercase letter between A and Z.
+* `[^0-9]`: A negated character set. Matches any character that is not a (here) number (notice how ^ inside brackets means "NOT", but outside brackets means "START").
+* `|`: OR as in C++
+* `()`: Capturing group. Pins characters together so you can apply operators or quantifiers to the whole block.
+
+### Examples
+
+```SQL
+-- Find users with valid e-mails (Leetcode 1517)
+SELECT email
+FROM Users
+WHERE email ~ '^[A-Za-z][A-Za-z0-9_.-]*@leetcode\.com$';
+```
+
+* **Explanation**:
+  * `^[A-Za-z]`: Must start with a letter (case-insensitive).
+  * `[A-Za-z0-9_.-]*`: Followed by any combination of letters, digits, underscores, dots, or hyphens.
+  * `@leetcode\.com$`: Must end exactly with `@leetcode.com`. The backslash `\.` is crucial because a plain `.` matches *any* character in Regex.
+
+```SQL
+-- Patients with a specific condition (Leetcode 1527)
+SELECT patient_id, patient_name, conditions
+FROM Patients 
+WHERE conditions ~ '(^|\s)DIAB1';
+```
+
+* **Explanation**:
+  * `(^|\s)`: Matches either the start of the text (`^`) OR a space (`\s`). This ensures `DIAB1` is a distinct code (e.g., matches `DIAB100` or `ACNE DIAB100` but correctly rejects `SADIAB100`).
+
+### Key Gotchas & Dialect Differences
+
+1. **MySQL Syntax**:
+   * MySQL uses the `REGEXP` or `RLIKE` operators.
+   * Example: `WHERE email REGEXP '^[A-Za-z]'`
+   * MySQL's regex is **case-insensitive** by default (based on table collation). To force case sensitivity, use the `BINARY` keyword: `WHERE email REGEXP BINARY '^[A-Z]'`.
+
+2. **Double Escaping (`\\`)**:
+   * Depending on database settings or client drivers, you may sometimes need to escape backslashes in string literals (e.g. using `\\s` instead of `\s` and `\\d` instead of `\d`). This is because the SQL parser consumes one backslash before the regex engine sees it.
 
 ## References
 
