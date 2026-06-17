@@ -10,6 +10,7 @@ Welcome to the notes and algorithms repository. This repository contains impleme
 | :--- | :--- | :--- | :--- |
 | [dsu.cpp](dsu.cpp) | C++ Source | Disjoint Set Union (DSU) / Union-Find | Path compression, union by size, component counting. |
 | [segtree.cpp](segtree.cpp) | C++ Source | Segment Tree template implementation | Point updates, range queries, custom merge operations. |
+| [OOPS.md](OOPS.md) | Markdown | OOPS quick reference & cheatsheet | Pillars, virtual functions/destructors, vtable/vptr, diamond problem, object slicing. |
 | [sql.md](sql.md) | Markdown | Comprehensive SQL reference & cheatsheet | LeetCode SQL 50 patterns, window functions, regex, CTEs. |
 | [.markdownlint.json](.markdownlint.json) | JSON | Markdown lint configuration | Disables `MD013` (line length rule). |
 
@@ -51,7 +52,24 @@ A standard 0-indexed Segment Tree represented as a flat array of size $4N$. It s
 
 ---
 
-### 3. SQL Reference ([sql.md](sql.md))
+### 3. OOPS Quick Reference ([OOPS.md](OOPS.md))
+
+A quick reference and cheatsheet for Object-Oriented Programming (OOP) concepts, mechanisms, and common C++ specific implementations.
+
+* **Key Topics**:
+  * [Four pillars of OOPS](OOPS.md#L5) - Abstraction, Encapsulation, Inheritance, and Polymorphism.
+  * [Polymorphism & Vtable/Vptr](OOPS.md#L11) - Difference between overloading and overriding; how virtual functions use vtables and vptrs under the hood.
+  * [Virtual Destructor](OOPS.md#L39) - Ensuring correct cleanup when deleting derived objects via base pointers.
+  * [Virtual Inheritance](OOPS.md#L52) - Fixing the diamond problem in C++.
+  * [Object Slicing](OOPS.md#L59) - Understanding why derived parts are discarded when assigning to base objects, and how to avoid it.
+  * [C++ Specifiers](OOPS.md#L76) - Using `override` and `final` (for classes and virtual functions).
+
+> [!TIP]
+> Virtual function calls resolve at runtime through dynamic/late binding via a compiler-generated **Vtable** (Virtual Table) lookup, referenced by an object's hidden **vptr** (virtual pointer).
+
+---
+
+### 4. SQL Reference ([sql.md](sql.md))
 
 My personal SQL reference guide covering LeetCode top SQL 50 patterns, date arithmetic, aggregation strategies, window functions, and regular expressions.
 
@@ -70,3 +88,4 @@ My personal SQL reference guide covering LeetCode top SQL 50 patterns, date arit
 > 5. Window Functions
 > 6. `SELECT` (picks output columns)
 > 7. `ORDER BY` (sorts final output)
+
