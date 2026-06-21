@@ -77,3 +77,42 @@
 * Best case search time = log(N) + 1; where N is the number of blocks in index table
   Worst case search time = log(N) + 1 + 1 (this can be more than 1, worst case no of blocks in HD)
 * Atmost one clustering index for database table.
+
+#### Secondary Index
+
+* Secondary indexed is used when data is unordered.
+* No of records in Index Table = No of records in HD.
+* Secondary indices have to be dense
+* Search complexity = log(N) + 1, where N is number of blocks in Index table (where secondary search based on KEY)
+  If secondary search is based on non key then we need to maintain intermediate layer that is block of record pointers. Search complexity = log(N) + 1 + 1
+
+> [!NOTE]
+> Dynamic Mulitlevel Index is just nested indexes. Can cause problems with inserting or deleting. Trees are used to solve this problem.
+
+### B-Tree
+
+* B-Tree is a balanced tree.
+
+B-Tree node properties:
+
+1. Block pointer/Tree pointer
+2. Keys
+3. Data pointer/Record Pointer.
+
+**Order of B-Tree**: Max no of children a node can have.
+
+| Children | Root | Intermediate or leaf node |
+|----------|------|---------------------------|
+| Max      | p    | p                         |
+| Min      | 2    | ceil(p/2)                 |
+
+Data is inserted in sorted order, like binary search tree.
+
+### B+Tree
+
+| B-Tree | B+Tree |
+|--------|--------|
+|Data is stored in leaf as well as internal nodes | Data is stored only in leaf nodes |
+| Searching is slower | Searching is faster |
+| No redundant search key present | Redundant keys would present |
+| Leaf nodes are not linked together | Leaf nodes are linked together |
