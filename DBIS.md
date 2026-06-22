@@ -3,6 +3,9 @@
 > [!NOTE]
 > This is not intended to be comprehensive.
 
+> [!IMPORTANT]
+> For SQL refer to [the SQL notes](./sql.md)
+
 <!--
 ## Intro
 
@@ -34,7 +37,7 @@
 
 ## Normalisation
 
-### First Normal form
+### First Normal Form
 
 All attributes must be atomic, i.e., no multi-valued attribute.
 
@@ -106,6 +109,169 @@ A minimal cover cannot allow more than one attribute on the right hand side.
   * Check if closure of one attribute (x) at LHS can derive other attribute (y) of LHS. If so, remove other attribute (y)
     * Similarly we can check if x can be removed
   * This step is called removal of extraneous attribute
+
+### Second Normal Form
+
+Conditions:
+
+* Should be in 1st normal form.
+* All NPA should be **fully** functionally dependent on CK.
+  * i.e., there should not be any partial dependency.
+    * Partial Dependency occurs when a non-prime attribute is functionally dependent on part of a candidate key
+
+![Partial Dependency Illustration](./partial_dep.png)
+
+### Third Normal Form
+
+Conditions:
+
+* Should be in 2nd normal form.
+* No transitive dependency.
+
+### Boyce Codd Normal Form(BCNF)
+
+* Should be in 3rd normal form
+* All attributes should be functionally dependent on CK.
+
+### Equivalence of Functional Dependency
+
+Two FDs, F and G are equivalent if
+
+* F covers G; and,
+* G covers F
+
+To check G is subset of F(or F covers G)
+
+* For each FD in G, pick it’s LHS and take closure from F
+* If all closure from F are able to determine FD in G then F covers G.
+
+## Transaction and Concurrency Control
+
+A transaction is a unit of program execution that accesses and possibly updates various data items.
+OR
+Set of operations used to perform a logical unit of work.
+
+**Atomicity**: Either all operations or no operations.(No partial execution)
+**Consistency**: A database must be consistent before and after a transaction(middle exempted). Consistency here implies non-violation of integrity constants and the like.
+**Isolation**: Running of one transaction should not affect another. (Running transactions should give the same results as running them serially, and no transaction should be able to access the intermediate state of another.)
+**Durability**: Permanent changes in database after a transaction is completed successfully.(Even in case of system failures)
+
+### Transaction state
+
+* **Active** – the initial state; a transaction stays in this state while it is executing transaction is main memory and it is getting executed
+* **Partially committed** – after the final statement has been executed transaction has completed all the operations except commit
+* **Failed** – after the discovery that normal execution can no longer proceed
+* **Aborted** – after the transaction has been rolled back and the database restored to its state prior to the start of the transaction. Two options after it has been aborted:
+  * restart the transaction(can be done only if no internal logical error)
+  * kill the transaction
+* **Committed** – after successful completion
+* **Terminated** – free the resources that were are used by transaction
+
+![Pathway of a Transaction](./txn_path.png)
+
+### Schedules
+
+**Schedule**:a sequences of instructions that specify the chronological order in which instructions of concurrent transactions are executed
+Two types:
+
+1. Serial Schedule
+2. Parallel Schedule
+
+| Serial Schedule | Parallel Schedule |
+|-----------------|-------------------|
+| Transactions execute after one another| Transactions execute concurrently |
+| Consistent | Can be inconsistent |
+| High waiting time | Less waiting time |
+| Low throughput | High throughput |
+| Low performance | High performance |
+
+### Conflicts
+
+Only transactions which read the same data do ***not*** have conflicts.
+
+* **Recoverable schedule**: if a transaction Tj reads a data item previously written by a transaction Ti, then the commit operation of Ti appears before the commit operation of Tj
+* **Cascading rollback**: a single transaction failure leads to a series of transaction rollbacks.
+* **Cascadeless schedules**: cascading rollbacks cannot occur. For each pair of transactions Ti and Tj such that Tj reads a data item previously written by Ti, the commit operation of Ti appears before the read operation of Tj.
+* **Strict recoverable**: Ti writes before Tj writes or reads, then Tj must read or write after Ti commits or aborts then only the schedule will be strict recoverable.
+
+> [!IMPORTANT]
+> **Recoverable <= Cascadeless <= Strict <= Serial schedule** (left is less strict and thus a superset)
+
+### Serialisability
+
+Two types:
+
+1. Conflict Serialisable
+2. View Serialisable
+
+#### Conflict Serialisability
+
+If a schedule S can be transformed into a schedule S’ by a series of swaps of non-conflicting instructions, we say that S and S’ are **conflict equivalent**.
+A schedule S is **conflict serialisable** if it is conflict equivalent to a serial schedule.
+
+##### Precedence graph
+
+Txns are nodes. Make an edge when Ti and Tj conflict originating from the txn that accessed the conflicting data first.
+If there is a cycle, this schedule is not conflict serialisable.
+If no cycle, then serialisability order is obtained by a topological sorting of the graph.
+
+#### View Serialisability
+
+Three Conditions:
+
+1. If in schedule S, transaction Ti reads the initial value of Q, then in schedule S’ also transaction Ti must read the initial value of Q. (Initial read)
+2. If in schedule S transaction Ti executes read(Q), and that value was produced by transaction Tj(if any), then in schedule S’ also transaction Ti must read the value of Q that was produced by the same write(Q) operation of transaction Tj (WR Sequence).
+3. The transaction (if any) that performs the final write(Q) operation in schedule S must also perform the final write(Q) operation in schedule S’ (Final Write).
+
+A schedule S is view serializable if it is view equivalent to a serial schedule.
+
+> [!IMPORTANT]
+> **All Schedules <= View Serialisable <= Conflict Serialisable <= Serial Schedule
+
+### Concurrency Control Protocols
+
+#### Shared-Exclusive locking
+
+Exclusive lock(X) and shared locks(S) obtainable on data items. Exclusive can read and write. Shared can only read. Requests made to concurrency control manager.
+A locking protocol is a set of rules followed by all transactions while requesting and releasing locks.
+
+**Deadlocks** possible when using locks.
+**Starvation** is when a transaction requesting an X-lock waits endlessly while multiple transactions request and are granted an S-lock.
+
+#### Two-Phase Locking(2PL)
+
+Phase 1: Transactions obtain locks.(And do not release)
+Phase 2: Transactions release locks. (No new requests)
+
+* **Strict 2PL**: Basic 2PL and all X-locks hold until commit.
+* **Rigorous 2PL**: Basic 2PL and all locks hold until commit.
+* **Conservative 2PL**: Lock all the items it will access before the Transaction begins.
+
+#### Timestamp-Based protocols
+
+Timestamp assigned may not be real time. Timestamp order = serialisability order
+
+##### Timestamp-Ordering Protocol
+
+Maintains for each data Q two timestamp values:
+
+* W-timestamp(Q) is the largest time-stamp of any transaction that executed write(Q) successfully.
+* R-timestamp(Q) is the largest time-stamp of any transaction that executed read(Q) successfully.
+
+For reads, compare with write timestamp
+For writes, compare with both read and write timestamps.
+
+* Always ensures serialisability
+* Free from deadlock.
+* Does not ensure recoverable or cascadeless schedules.
+
+###### Strict Timestamp-Ordering Protocol
+
+A Transaction T that issues a R_item(X) or W_item(X) such that TS(T) > W_TS(X) has its read or write operation delayed until the Transaction T‘ that wrote the values of X has committed or aborted
+
+* Ensures recoverable and cascadeless schedules
+* Free from deadlock
+* Ensures serializability
 
 ## Indexing
 
@@ -191,3 +357,7 @@ Data is inserted in sorted order, like binary search tree.
 | Searching is slower | Searching is faster |
 | No redundant search key present | Redundant keys would present |
 | Leaf nodes are not linked together | Leaf nodes are linked together |
+
+## References
+
+* Class PPT(Based on Silberschatz, Abraham, Henry F. Korth, and Shashank Sudarshan. Database system concepts. Vol. 6. New York: McGraw-Hill, 1997.)
