@@ -32,6 +32,81 @@
 * Strong entity sets have sufficient attributes to form a key.
 * Weak entity sets: no key can be formed.
 
+## Normalisation
+
+### First Normal form
+
+All attributes must be atomic, i.e., no multi-valued attribute.
+
+### Functional Dependency
+
+Require that the value for a certain set of attributes determines uniquely the value for another set of attributes.
+
+x->y
+x uniquely determines y. Essentially, if two records have the same entry for x, they have to have the same entry for y.
+
+#### Properties of Functional Dependency
+
+* Reflexive rule: if 'b' is a subset of 'a', then a->b (trivial and valid)
+* Augmentation rule: if a->b, then ca->cb (valid)
+* Transitivity rule: if a->b, and b->c, then a->c (valid)
+* Union rule: If a->b holds and b->c holds, then a->bc holds(valid)
+* Decomposition rule: If a->bc holds, then a->b holds and b->c holds (valid)
+* Pseudotransitivity rule: If a->b holds and cb->d holds, then ac->d holds (valid)
+* Composition rule: If a->b holds and d->c holds, then ad->bc holds (valid)
+
+#### Closure of a Set of Functional Dependencies
+
+The set of all functional dependencies logically implied by F is the
+closure of F.
+We denote the closure of F by F+
+
+* PA = All the attributes that are present in the set of CK
+* NPA = {All the attributes of Relation} - PA
+
+#### Canonical Cover
+
+A canonical cover for F is a set of dependencies Fc such that
+
+* F logically implies all dependencies in Fc, and
+* Fc logically implies all dependencies in F, and
+* No functional dependency in Fc contains an extraneous attribute
+  * An attribute of a functional dependency is said to be extraneous if we can remove it without changing the closure of the set of functional dependencies
+* Each left side of functional dependency in Fc is unique. That is, there are no two dependencies in Fc
+  * a1->b1 and a2 -> b2 such that
+  * a1 = a2
+
+##### To compute a canonical cover for F
+
+repeat
+  Use the union rule to replace any dependencies in F of the form
+
+    a1->b1 and a1->b2 with a1 ->b1 b2
+
+  Find a functional dependency a->b in Fc with an extraneous attribute either in a or in b
+  If an extraneous attribute is found, delete it from a->b
+until (Fc not change)
+
+> [!NOTE]
+> Union rule may become applicable after some extraneous attributes have been deleted, so it has to be re-applied
+
+#### Minimal Cover
+
+A minimal cover cannot allow more than one attribute on the right hand side.
+
+##### Method to find Minimal Cover
+
+* First, make RHS of each FD as a single attribute or decompose RHS
+  * Use decomposition rule
+* Second, pick each functional dependency (FD) and check if other functional decencies (excluding current FD) can generate the same results/dependencies
+  * If other FDs can generate, remove the current FD
+    * Find the closure of LHS of each FD from other FDs (excluding current FD) and check if other dependencies can generate RHS of current FD. If so, remove current FD
+  * This step is called removal of redundant FD.
+* Third, pick those FDs that have at least 2 attributes at LHS and try to reduce it (preferably make it one attribute on the LHS). E.g. xy->z
+  * Check if closure of one attribute (x) at LHS can derive other attribute (y) of LHS. If so, remove other attribute (y)
+    * Similarly we can check if x can be removed
+  * This step is called removal of extraneous attribute
+
 ## Indexing
 
 **Search key**: Attribute to set of attributes used to look up records in a file.
