@@ -14,7 +14,8 @@ Welcome to the notes and algorithms repository. This repository contains impleme
 | [DSA/trie_alphabet.cpp](DSA/trie_alphabet.cpp) | C++ Source | Trie (Prefix Tree) for strings | Lowercase English letters, insertion, search, prefix match, recursion removal. |
 | [DSA/trie_binary.cpp](DSA/trie_binary.cpp) | C++ Source | Binary Trie (Bitwise Trie) | Integer insertion, reference-counted removal, max/min XOR query. |
 | [OOPS.md](OOPS.md) | Markdown | OOPS quick reference & cheatsheet | Pillars, virtual functions/destructors, vtable/vptr, diamond problem, object slicing. |
-| [sql.md](sql.md) | Markdown | Comprehensive SQL reference & cheatsheet | LeetCode SQL 50 patterns, window functions, regex, CTEs. |
+| [DBIS/DBIS.md](DBIS/DBIS.md) | Markdown | Database and Information Systems notes | Normalisation, Transaction & Concurrency control, Indexing, and Query Optimisation. |
+| [DBIS/sql.md](DBIS/sql.md) | Markdown | Comprehensive SQL reference & cheatsheet | LeetCode SQL 50 patterns, window functions, regex, CTEs. |
 | [.markdownlint.json](.markdownlint.json) | JSON | Markdown lint configuration | Disables `MD013` (line length rule). |
 
 ---
@@ -114,14 +115,26 @@ A quick reference and cheatsheet for Object-Oriented Programming (OOP) concepts,
 
 ---
 
-### 7. SQL Reference ([sql.md](sql.md))
+### 7. DBIS Notes ([DBIS/DBIS.md](DBIS/DBIS.md))
+
+A quick reference for Database and Information Systems concepts.
+
+* **Sections**:
+  * [Normalisation](DBIS/DBIS.md#L38) - Functional dependency properties, closures, canonical and minimal covers, 1NF, 2NF, 3NF, BCNF.
+  * [Transaction and Concurrency Control](DBIS/DBIS.md#L148) - ACID properties, transaction states, serialisability, and protocols (2PL, Timestamp-ordering).
+  * [Indexing](DBIS/DBIS.md#L276) - Dense, sparse, primary, clustered, and secondary indexes; B-Trees and B+ Trees.
+  * [Query Optimisation](DBIS/DBIS.md#L361) - Parsing, algebraic/heuristic rules, cost-based optimizer calculations (nested loops, sort-merge), and sargability.
+
+---
+
+### 8. SQL Reference ([DBIS/sql.md](DBIS/sql.md))
 
 My personal SQL reference guide covering LeetCode top SQL 50 patterns, date arithmetic, aggregation strategies, window functions, and regular expressions.
 
 * **Sections**:
-  * [At a glance](sql.md#L5) - Quick recipes for complex SQL questions (e.g., Rising Temperature, Average Process Time, Group Sold Products).
-  * [Syntax Reference](sql.md#L148) - Deep-dives into core SQL syntax, execution order, window functions (`ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `LAG()`, `LEAD()`), and conditional aggregation using `CASE WHEN`.
-  * [Regex](sql.md#L447) - PostgreSQL native regex operators, character classes, quantifiers, and differences compared to MySQL syntax.
+  * [At a glance](DBIS/sql.md#L5) - Quick recipes for complex SQL questions (e.g., Rising Temperature, Average Process Time, Group Sold Products).
+  * [Syntax Reference](DBIS/sql.md#L148) - Deep-dives into core SQL syntax, execution order, window functions (`ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `LAG()`, `LEAD()`), and conditional aggregation using `CASE WHEN`.
+  * [Regex](DBIS/sql.md#L447) - PostgreSQL native regex operators, character classes, quantifiers, and differences compared to MySQL syntax.
 
 > [!IMPORTANT]
 > **Logical Execution Order in SQL**:
