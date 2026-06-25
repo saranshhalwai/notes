@@ -1,7 +1,7 @@
 # Database and Information Systems notes
 
 > [!NOTE]
-> This is not intended to be comprehensive.
+> This is not intended to be comprehensive. Also, it often quotes various [source material](#references) verbatim and at other times, is just my interpretation of a long block of text.  
 
 > [!IMPORTANT]
 > For SQL refer to [the SQL notes](./sql.md)
@@ -178,8 +178,8 @@ Two types:
 2. Parallel Schedule
 
 | Serial Schedule | Parallel Schedule |
-|-----------------|-------------------|
-| Transactions execute after one another| Transactions execute concurrently |
+| --------------- | ----------------- |
+| Transactions execute after one another | Transactions execute concurrently |
 | Consistent | Can be inconsistent |
 | High waiting time | Less waiting time |
 | Low throughput | High throughput |
@@ -187,12 +187,12 @@ Two types:
 
 ### Conflicts
 
-Only transactions which read the same data do ***not*** have conflicts.
+Two operations in a schedule conflict if they belong to different transactions, access the same data item, and at least one is a write (i.e., Read-Write, Write-Read, and Write-Write conflicts).
 
-* **Recoverable schedule**: if a transaction Tj reads a data item previously written by a transaction Ti, then the commit operation of Ti appears before the commit operation of Tj
+* **Recoverable schedule**: if a transaction Tj reads a data item previously written by a transaction Ti, then the commit operation of Ti appears before the commit operation of Tj.
 * **Cascading rollback**: a single transaction failure leads to a series of transaction rollbacks.
 * **Cascadeless schedules**: cascading rollbacks cannot occur. For each pair of transactions Ti and Tj such that Tj reads a data item previously written by Ti, the commit operation of Ti appears before the read operation of Tj.
-* **Strict recoverable**: Ti writes before Tj writes or reads, then Tj must read or write after Ti commits or aborts then only the schedule will be strict recoverable.
+* **Strict recoverable**: If Ti writes a data item, any subsequent read or write of that item by Tj must be delayed until Ti commits or aborts.
 
 > [!IMPORTANT]
 > **Recoverable <= Cascadeless <= Strict <= Serial schedule** (left is less strict and thus a superset)
@@ -273,6 +273,109 @@ A Transaction T that issues a R_item(X) or W_item(X) such that TS(T) > W_TS(X) h
 * Free from deadlock
 * Ensures serializability
 
+#### Multi Version Concurrency Control
+
+With MVCC, the DBMS maintains multiple *physical* versions of a single *logical* object in the database. When a transaction writes to an object, the DBMS creates a new version of that object. When a transaction reads an object, it reads the newest version that existed when the transaction started.
+
+The fundamental concept/benefit of MVCC is that writers do not block readers and readers do not block writers.
+
+One advantage of using MVCC is that read-only transactions can read a consistent snapshot of the database without using locks of any kind, and it naturally supports Snapshot Isolation (SI)
+
+A typical MVCC-based database design will:
+
+1. Have a versioned storage which stores different versions of the same logical object. (Note: Do not do this!)
+2. Takes a snapshot of the database (by copying the transaction status table) when a transaction starts.
+3. Use the snapshot to determine which versions of objects are visible to the transaction.
+
+##### Snapshot Isolation
+
+Snapshot Isolation involves providing a transaction with a consistent snapshot of the database when the transaction started. Data values from a snapshot consist of only values from committed transactions, and the transaction operates in complete isolation from other transactions until it finishes.
+
+**Write Conflicts**: If two transactions update the same object, the first writer wins
+**Write Skew Anomaly**  can occur in Snapshot Isolation when two concurrent transactions modify different objects resulting in non-serializable schedules. For example, if one transaction changes all white marbles to black and the other changes all black marbles to white, the outcome may not correspond to any serializable schedule.
+
+##### Serialisable Snapshot Isolation
+
+Here is an anti-dependency from a transaction T1 to a transaction T2 if T1 reads a version of item x, and T2 produces a version of x that is later in the version order (i.e. newer) than the version read by T1. If there is an anti-dependency from T1 to T2 and from T2 to T1, serializability is violated and at least one of T1 and T2 must be aborted and retried.
+
+There are five important MVCC design considerations:
+
+1. Concurrency Control Protocol
+2. Version Storage
+3. Garbage Collection
+4. Index Management
+5. Deletes
+
+##### 1. Concurrency Control Protocol
+
+The choice of concurrency protocol is between the approaches discussed above (two-phase locking, timestamp ordering, optimistic concurrency control).
+
+##### 2. Version Storage
+
+This determines how the DBMS stores the different physical versions of a logical object and how transactions find the newest version visible to them. The DBMS uses the tuple’s pointer field to create a **version chain** (a linked list of versions sorted by timestamp). Indexes always point to the head of the chain.
+
+* **Append-Only Storage**: All physical versions of a logical tuple are stored in the same table space. Every update appends a new version to the table and updates the version chain.
+  * *Oldest-to-Newest (O2N)*: Requires traversing the chain on lookups.
+  * *Newest-to-Oldest (N2O)*: Must update index pointers for every new version, but avoids chain traversal on lookups. (Usually preferred as most transactions care about the newest version).
+* **Time-Travel Storage**: The DBMS maintains a separate *time-travel table* for older versions. On update, the DBMS copies the old version to the time-travel table, overwrites the main table in-place with the new data, and points the main table tuple pointer to the time-travel table.
+* **Delta Storage**: Like time-travel storage, but stores only *deltas* (changes/diffs) in a *delta storage segment* instead of full past tuples. Recreates older versions by iterating through deltas in reverse order. Results in faster writes but slower reads.
+
+###### Versioning with Large Values (Overflow Pages)
+
+If a transaction does not modify data in columns using overflow pages, the DBMS reuses overflow pointers instead of copying data.
+
+* *Reference Counting*: Uses an internal metadata table to track the number of physical versions pointing to an overflow page.
+* *Garbage Collection*: Uses the version chain to identify which physical tuples point to the same overflow page before reclaiming space (more common).
+
+##### 3. Garbage Collection
+
+The DBMS must remove *reclaimable* physical versions over time. A version is reclaimable if no active transaction can see it, or if it was created by an aborted transaction.
+
+* **Tuple-level GC**: DBMS finds old versions by examining tuples directly.
+  * *Background Vacuuming*: Separate threads periodically scan the table for reclaimable versions.
+    * *Optimization*: A **dirty page bitmap** is maintained to skip unmodified pages.
+  * *Cooperative Cleaning*: Worker threads identify and prune reclaimable versions while traversing the version chain (only works for O2N chains; un-accessed data is never cleaned).
+* **Transaction-level GC**: Each transaction tracks its own old versions using its read/write sets. When a transaction completes, the garbage collector reclaims the associated tuples directly without scanning tables.
+
+###### PostgreSQL Transaction ID Wraparound
+
+PostgreSQL uses fixed-size 32-bit transaction IDs. Long-running clusters could suffer from transaction ID wraparound (counter resets to 0, making past transactions appear in the future).
+
+* *Fix*: Background Vacuum scans every tuple and marks rows as **frozen** (meaning they were committed sufficiently far in the past).
+
+###### Block Compaction
+
+Coalescing/compacting less-than-full data blocks into fewer blocks and releasing empty blocks (e.g. `VACUUM FULL` in PostgreSQL). Compaction groups tuples likely to be accessed together:
+
+* *Time Since Last Update*: Uses `BEGIN-TS` to group tuples modified around the same time.
+* *Time Since Last Access*: Requires maintaining `READ-TS` on tuples (expensive).
+* *Application-level Semantics*: Identifies higher-level relations among tuples from the same table.
+
+##### 4. Index Management
+
+All primary key (pkey) indexes point to the version chain head. If a transaction updates a pkey attribute, it is treated as a `DELETE` followed by an `INSERT`.
+Secondary index management is more complex and has two main approaches:
+
+* **Logical Pointers**: The DBMS uses a fixed tuple identifier that does not change. An extra indirection layer maps the logical ID to the physical location of the tuple. Updates to tuples only require updating the mapping in the indirection layer.
+* **Physical Pointers**: Secondary indexes store the physical address of the version chain head. This requires updating every secondary index whenever the version chain head is updated (very expensive).
+
+###### MVCC Duplicate Key Problem
+
+Indexes usually do not store version information. They must support duplicate keys because different snapshots might point to different physical versions of the same logical key. Workers may get multiple entries on a single fetch and must follow pointers to find the correct physical version.
+
+##### 5. Deletes
+
+The DBMS physically deletes a tuple only when all versions of a logically deleted tuple are no longer visible. A logically deleted tuple cannot have new versions created after its deletion (first-writer wins, no write-write conflicts).
+To denote logical deletion:
+
+* **Deleted Flag**: A flag in the tuple header or a separate column indicates the tuple is logically deleted.
+* **Tombstone Tuple**: An empty physical version indicates logical deletion. A special bit pattern in the version chain pointer is used to reduce storage overhead.
+
+###### Representation of Deleted Tuples (Slot Management)
+
+* *Reuse Slot*: Allow new tuples to be inserted back into vacated slots. Easy in append-only storage; hurts temporal locality in delta storage due to intermixing.
+* *Leave Slot Unoccupied*: Workers cannot insert new tuples into previously occupied slots, keeping new versions physically close. Requires a separate compaction mechanism to reclaim empty slots.
+
 ## Indexing
 
 **Search key**: Attribute to set of attributes used to look up records in a file.
@@ -317,18 +420,18 @@ A Transaction T that issues a R_item(X) or W_item(X) such that TS(T) > W_TS(X) h
 * follows sparse indexing.
 * Best case search time = log(N) + 1; where N is the number of blocks in index table
   Worst case search time = log(N) + 1 + 1 (this can be more than 1, worst case no of blocks in HD)
-* Atmost one clustering index for database table.
+* At most one clustering index for database table.
 
 #### Secondary Index
 
-* Secondary indexed is used when data is unordered.
+* Secondary index is used when data is unordered.
 * No of records in Index Table = No of records in HD.
-* Secondary indices have to be dense
-* Search complexity = log(N) + 1, where N is number of blocks in Index table (where secondary search based on KEY)
-  If secondary search is based on non key then we need to maintain intermediate layer that is block of record pointers. Search complexity = log(N) + 1 + 1
+* Secondary indices have to be dense.
+* Search complexity = log(N) + 1, where N is number of blocks in Index table (where secondary search based on KEY).
+  If secondary search is based on non-key, we maintain an intermediate layer of record pointers. Search complexity = log(N) + 1 + 1.
 
 > [!NOTE]
-> Dynamic Mulitlevel Index is just nested indexes. Can cause problems with inserting or deleting. Trees are used to solve this problem.
+> Dynamic Multilevel Index is just nested indexes. Can cause problems with inserting or deleting. Trees are used to solve this problem.
 
 ### B-Tree
 
@@ -354,8 +457,8 @@ Data is inserted in sorted order, like binary search tree.
 | B-Tree | B+Tree |
 | ------ | ------ |
 | Data is stored in leaf as well as internal nodes | Data is stored only in leaf nodes |
-| Searching is slower | Searching is faster |
-| No redundant search key present | Redundant keys would present |
+| Search time is variable (can be faster if key is in root/internal nodes) | Search time is constant (must traverse to leaf, but faster for range queries) |
+| No redundant search key present | Redundant search keys are present |
 | Leaf nodes are not linked together | Leaf nodes are linked together |
 
 ## Query Optimisation
@@ -435,6 +538,183 @@ For equality join conditions. Inputs are sorted by join key and scanned concurre
   * *Non-Sargable*: `WHERE YEAR(join_date) = 2026` (forces full table scan because function runs on every row).
   * *Sargable*: `WHERE join_date >= '2026-01-01' AND join_date <= '2026-12-31'` (allows B+ tree index seek).
 
+## Database Internals
+
+### Database Storage
+
+* **Directory Page**: The first page in database files, acting as a directory of pages.
+* **Buffer Pool**: Memory region for temporarily storing pages; manages data movement between disk and memory.
+* **Execution Engine**: Executes queries by requesting specific pages from the buffer pool and operating on the retrieved memory pointer.
+
+#### Database Pages
+
+* **Page**: Fixed-size block of data representing the unit of transfer between disk and memory.
+* **Page ID**: Unique identifier per page (can be instance-wide, database-wide, or table-wide).
+* **Page Types**:
+  1. Hardware page (typically 4 KB, hardware guarantees atomic write at this size).
+  2. OS page (typically 4 KB).
+  3. Database page (typically 1–16 KB).
+* **Database Heap (Heap File)**: Unordered collection of pages storing tuples in random order.
+
+#### Page Layout
+
+* **Page Header**: Contains page metadata (size, checksum, DBMS version, transaction visibility, self-containment info).
+* **Layout Approaches**: Slotted pages (Tuple-Oriented), Log-Structured, and Index-Organised.
+
+##### Slotted Pages (Tuple-Oriented)
+
+The entire tuple is stored in the page. The page maps slots to offsets:
+
+* **Header**: Tracks number of used slots, offset of last used slot, and a slot array mapping to each tuple's start.
+* **Growth Direction**: Slot array grows from start of page to end; tuple data grows from end of page to start. Page is full when they meet.
+* **Record ID (RID)**: Unique logical tuple identifier representing its physical location (e.g. `[file_id, page_id, slot_number]`). Size: 4–10 bytes.
+* **Tuple Header**: Metadata (transaction visibility, NULL value bitmap). Does not store database schema.
+* **Tuple Data**: Attribute values stored sequentially (usually word-aligned). Most DBMSs restrict tuple size to page size.
+
+###### Operations in Slotted Pages
+
+* **Retrieval**: Find page position via directory $\rightarrow$ fetch page to buffer pool $\rightarrow$ locate tuple offset via slot array.
+* **Insertion**: Locate page with free slot $\rightarrow$ verify space via slot array $\rightarrow$ write tuple and update slot array.
+* **Update**: Find tuple via Record ID. If new value fits in-place, overwrite. Otherwise, mark old value deleted and insert new value as a new tuple.
+
+###### Limitations
+
+* **Fragmentation**: Deletions leave empty slots/gaps, leading to under-utilized pages.
+* **Useless Disk I/O**: Block-oriented transfers require fetching the entire page to update a single tuple.
+* **Random Disk I/O**: Non-sequential page updates force slow, random disk head jumps.
+
+#### Log-Structured Storage
+
+Appends log records of tuple modifications sequentially, based on Log-Structured File Systems (LSFS) and LSM Trees, avoiding in-place updates.
+
+* **MemTable**: In-memory data structure where modifications (PUT/DELETE logs) are written first.
+* **SSTable (Sorted String Table)**: Immutable on-disk files written sequentially once the MemTable fills up. Tuples are stored sorted by key.
+* **Read Path**: Check MemTable $\rightarrow$ scan SSTables from newest to oldest (using binary search).
+  * *Optimisation*: Maintain an in-memory **SummaryTable** (min/max keys per SSTable) and a **Bloom Filter** per level to skip checking SSTables that do not contain the key.
+
+##### Compaction
+
+Periodically merges SSTables using a sort-merge algorithm to discard old versions/deleted tuples, reducing disk usage and read latency.
+
+* **Universal Compaction**: SSTables are kept in a single level. Compaction triggers when file count or overlapping key ranges exceed thresholds. Best for write-heavy/time-series workloads.
+* **Level Compaction**: SSTables are grouped into levels (Level 0, Level 1, etc.). Key ranges are sorted and non-overlapping within each level (except Level 0). Compacting Level L merges files into Level L+1. Best for read-heavy workloads.
+
+##### Tradeoffs
+
+* **Pros**: Fast sequential writes; matches append-only cloud storage; no random disk writes.
+* **Cons**: Slower read times (potentially checking multiple SSTables); expensive compaction overhead.
+* **Write Amplification**: Multiple physical disk writes (during compaction) for a single logical write.
+
+#### Index-Organised Storage
+
+DBMS directly stores a table's tuples as the values inside an index data structure (e.g., B+ Tree). Uses a slotted page layout; tuples are sorted by key.
+
+#### Data Representation
+
+* **Integers (INTEGER/BIGINT/SMALLINT)**: Stored in native C/C++ format.
+* **Reals (FLOAT/REAL vs. NUMERIC/DECIMAL)**:
+  * *Variable Precision (FLOAT/REAL)*: Inexact, stored using IEEE-754 standard. Fast due to hardware CPU support.
+  * *Fixed Precision (NUMERIC/DECIMAL)*: Exact, stored as variable-length binary; supports arbitrary precision/scale.
+* **Variable Length (VARCHAR/VARBINARY/TEXT/BLOB)**: Stored as a header (containing length) followed by data bytes, or a pointer to an overflow page.
+  * *Overflow Pages*: Used when value exceeds page size. A Record ID points to the overflow page. Can store a prefix inline to avoid page fetching on scans.
+  * *External Value Storage*: Stores massive values in external files (BLOBs). The DBMS does not provide transaction or durability guarantees for external files.
+* **Temporal (TIME/DATE/TIMESTAMP)**: Stored as 32/64-bit integers representing micro/milliseconds since Unix epoch.
+* **Null Values**:
+  * *Null Column Bitmap*: A bitmap in the page header; a bit is set if the attribute is NULL (common in row-stores).
+  * *Special Values*: Reserved values (e.g., `INT32_MIN`) designate NULL (common in column-stores).
+  * *Per-Attribute Flag*: A flag stored alongside each attribute; bad for word alignment padding.
+
+#### System Catalogs
+
+Internal tables containing metadata used to decipher database contents:
+
+* Database objects (tables, views, columns, indexes, procedures).
+* User access controls and permissions.
+* Table statistics (e.g., cardinality, min/max values).
+* Catalog tables are stored inside the database and initialized via bootstrap code.
+
+### Buffer Pool
+
+In-memory cache representing an array of fixed-size frames; operates as a write-back cache for pages.
+
+* **Page Directory**: On-disk mapping of page IDs to physical file locations. Changes must be flushed to disk immediately for crash recovery.
+* **Buffer Pool Metadata**:
+  * *Page Table*: In-memory hash table mapping page IDs to active buffer pool frame locations. Includes page metadata (dirty flag, pin counter, access tracking).
+  * *Dirty Flag*: Set when a page is modified; alerts manager to write the page back to disk before eviction.
+  * *Pin/Reference Counter*: Tracks active threads accessing the page. Pin count > 0 prevents page eviction.
+
+#### Page Table vs. Page Directory
+
+* **Page Directory**: Maps Page ID $\rightarrow$ Physical File location. Persisted on disk.
+* **Page Table**: Maps Page ID $\rightarrow$ In-memory Buffer Pool frame. In-memory only.
+
+#### Locks vs. Latches
+
+| Feature | Locks | Latches |
+| :--- | :--- | :--- |
+| **Scope** | High-level logical primitives (database contents). | Low-level execution primitives (internal data structures). |
+| **Duration** | Held for transaction duration. | Held for operation duration. |
+| **Rollback** | Requires rollback capabilities. | No rollback capability required. |
+| **Implementation** | Managed by lock manager. | Language primitives (mutexes, spinlocks). |
+
+#### Buffer Replacement Policies
+
+* **LRU (Least Recently Used)**: Evicts page that has not been accessed for the longest time.
+* **CLOCK**: Approximates LRU using a reference bit per page. A sweeping hand checks pages: if bit is 1, set to 0; if bit is already 0, evict and replace with the new page (setting its bit to 1).
+* **LFU (Least Frequently Used)**: Evicts page with the lowest access count.
+* **ARC (Adaptive Replacement Cache)**: Dynamically balances recency and frequency by maintaining two lists (T1 for recency, T2 for frequency) and adjusting a target size parameter $p$.
+
+#### Buffer Pool Optimisations
+
+1. **Multiple Buffer Pools**: Reduces lock contention.
+   * *Object IDs*: RIDs contain an object identifier to map objects to designated buffer pools.
+   * *Hashing*: Hashes page IDs to distribute pages across buffer pools.
+2. **Pre-fetching**: Retrieves pages sequentially before the execution engine requests them (e.g., table scans).
+3. **Scan Sharing (Synchronized Scans)**: Allows multiple query cursors to attach to a single table scan to reuse pages in memory.
+4. **Buffer Pool Bypass**: Bypasses the buffer pool (directly reading/writing to disk) for large sequential scans to avoid dirtying buffer frames.
+
+### Query Processing
+
+#### Query Plan
+
+A DAG (typically a tree) of operators converting SQL to actions. Data flows from leaves to the root; root outputs the final query result.
+
+* **Pipeline**: A sequence of operators where tuples flow continuously between operators without intermediate storage.
+* **Pipeline Breaker**: An operator that must consume all input tuples from its child before emitting output (e.g., Joins [build side], Subqueries, Order By).
+
+#### Processing Models
+
+Defines the control flow (how operators are invoked) and data flow (how results are sent) for query plan execution. Output format can be whole tuples (NSM) or subsets of columns (DSM).
+
+##### Iterator Model (Volcano / Pipeline)
+
+Implements a `Next()` function on every operator:
+
+* Nodes call `Next()` on their children recursively, pulling tuples one-by-one.
+* Returns a single tuple or a null marker (if finished) per call.
+* High virtual function call overhead and CPU branching.
+
+##### Materialisation Model
+
+Operators process inputs completely and emit output all at once:
+
+* Implements an `Output()` function returning all tuples for the operator.
+* Operator finishes completely; parents never have to call it again.
+* Good for OLTP queries (small result sets); bad for OLAP (large intermediate tables).
+
+##### Vectorisation Model
+
+A hybrid of Iterator and Materialisation:
+
+* Implements a `Next()` function returning a **batch (vector) of tuples** instead of a single tuple.
+* Greatly reduces virtual function overhead while preserving pipelining.
+
+#### Processing Direction
+
+* **Top-to-Bottom (Pull)**: Begins at root and pulls data from children. Easy to limit results (e.g. `LIMIT`), but incurs virtual function overhead.
+* **Bottom-to-Top (Push)**: Starts at leaves and pushes data up. Enhances cache/CPU register utilization, but harder to limit/control intermediate sizes.
+
 ## References
 
 * Class PPT(Based on Silberschatz, Abraham, Henry F. Korth, and Shashank Sudarshan. Database system concepts. Vol. 6. New York: McGraw-Hill, 1997.)
+* [Notes of CMU course on the same topic.](https://15445.courses.cs.cmu.edu/spring2026/schedule.html)

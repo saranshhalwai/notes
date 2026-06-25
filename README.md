@@ -14,7 +14,7 @@ Welcome to the notes and algorithms repository. This repository contains impleme
 | [DSA/trie_alphabet.cpp](DSA/trie_alphabet.cpp) | C++ Source | Trie (Prefix Tree) for strings | Lowercase English letters, insertion, search, prefix match, recursion removal. |
 | [DSA/trie_binary.cpp](DSA/trie_binary.cpp) | C++ Source | Binary Trie (Bitwise Trie) | Integer insertion, reference-counted removal, max/min XOR query. |
 | [OOPS.md](OOPS.md) | Markdown | OOPS quick reference & cheatsheet | Pillars, virtual functions/destructors, vtable/vptr, diamond problem, object slicing. |
-| [DBIS/DBIS.md](DBIS/DBIS.md) | Markdown | Database and Information Systems notes | Normalisation, Transaction & Concurrency control, Indexing, and Query Optimisation. |
+| [DBIS/DBIS.md](DBIS/DBIS.md) | Markdown | Database and Information Systems notes | Normalisation, Transaction & Concurrency control (MVCC), Indexing, Query Optimisation, and Storage/Buffer Pool Internals. |
 | [DBIS/sql.md](DBIS/sql.md) | Markdown | Comprehensive SQL reference & cheatsheet | LeetCode SQL 50 patterns, window functions, regex, CTEs. |
 | [.markdownlint.json](.markdownlint.json) | JSON | Markdown lint configuration | Disables `MD013` (line length rule). |
 
@@ -121,9 +121,10 @@ A quick reference for Database and Information Systems concepts.
 
 * **Sections**:
   * [Normalisation](DBIS/DBIS.md#L38) - Functional dependency properties, closures, canonical and minimal covers, 1NF, 2NF, 3NF, BCNF.
-  * [Transaction and Concurrency Control](DBIS/DBIS.md#L148) - ACID properties, transaction states, serialisability, and protocols (2PL, Timestamp-ordering).
-  * [Indexing](DBIS/DBIS.md#L276) - Dense, sparse, primary, clustered, and secondary indexes; B-Trees and B+ Trees.
-  * [Query Optimisation](DBIS/DBIS.md#L361) - Parsing, algebraic/heuristic rules, cost-based optimizer calculations (nested loops, sort-merge), and sargability.
+  * [Transaction and Concurrency Control](DBIS/DBIS.md#L148) - ACID properties, transaction states, serialisability, and protocols (2PL, Timestamp-ordering, MVCC).
+  * [Indexing](DBIS/DBIS.md#L369) - Dense, sparse, primary, clustered, and secondary indexes; B-Trees and B+ Trees.
+  * [Query Optimisation](DBIS/DBIS.md#L454) - Parsing, algebraic/heuristic rules, cost-based optimizer calculations (nested loops, sort-merge), and sargability.
+  * [Database Internals](DBIS/DBIS.md#L531) - Page layout (slotted pages), log-structured storage, buffer pool replacement policies (LRU, Clock, LFU, ARC), and query processing models.
 
 ---
 
